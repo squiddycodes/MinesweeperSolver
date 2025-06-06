@@ -1,5 +1,5 @@
 # MinesweeperSolver
-Algorithmic Solver for Minesweeper game - running the code requires Java Processing.
+Algorithmic Solver for Minesweeper game - running the code requires Java Processing. **Keep all .pde files in MinesweeperSolver directory to run the code.**
 
 Watch as the algorithm quickly solves minesweeper puzzles of your choosing!
 
