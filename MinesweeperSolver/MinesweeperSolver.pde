@@ -7,7 +7,7 @@ int mapSize = 800;//               800
 int mines = 40;//                   40
 int numSpaces = 256;//             256
 
-boolean BIGGAME = false;//10,000 spaces game
+boolean BIGGAME = true;//10,000 spaces game
 boolean humanPlaying = false;
 //END GAME PARAMETERS
 
@@ -16,6 +16,7 @@ boolean gameOver = false;
 boolean delayDraw = false;
 boolean justDelayed = false;
 int delayBy = 0;
+int delayIn = 3;
 
 Space[] spaces = new Space[numSpaces];
 ArrayList<Space> discoveredSpaces = new ArrayList<>();
@@ -51,14 +52,23 @@ void setup(){
 }
 
 void draw(){
+  drawMap();
   if(delayDraw){
+    delayIn--;
+    if(isWinState())
+      showEndGameMessage(true);
+    else
+      showEndGameMessage(false);
+  }
+  if(delayIn == 0){
     delay(delayBy);
     delayDraw = false;
     justDelayed = true;
     reset();
+    delayIn = 3;
   }
-  drawMap();
-  clickSpace(smartMove());
+  if(!gameOver)
+    clickSpace(smartMove());
 }
 
 void mousePressed(){
@@ -277,8 +287,10 @@ Space smartMove(){
         minIndex = i;
       }
     }
+    System.out.println("Inferring");
     return unkSpaces.get(minIndex);
   }
+  System.out.println("Guessing");
   for(Space s : spaces)
     if(!s.isFlagged() && !s.isDiscovered())
       return s;
