@@ -5,7 +5,7 @@ class Space{
   Space[] neighbors = new Space[8];                                    // NEIGHBORS OF X   0 1 2
   int xBounds[] = new int[2];                                          //                  3 X 4
   int yBounds[] = new int[2];                                          //                  5 6 7
-  int numMines = 0;
+  int numMines = 0;//num mines neighboring the space
   public Space(boolean mineStatus, int[] xBounds, int[] yBounds){
     this.mine = mineStatus;
     this.xBounds[0] = xBounds[0];
@@ -35,6 +35,49 @@ class Space{
     return nonNullNeighbors.toArray(new Space[0]);
   }
   
+  Space[] getNonDiscoveredNeighbors(){//INCLUDEs FLAGGED NEIGHBORS
+    ArrayList<Space> nonDiscoveredNeighbors = new ArrayList<>();
+    for(Space s:this.getNeighbors()){
+      if(s != null && !s.isDiscovered())
+        nonDiscoveredNeighbors.add(s);
+    }
+    return nonDiscoveredNeighbors.toArray(new Space[0]);
+  }
+  
+  Space[] getUnkNeighbors(){//DOESNT INCLUDE FLAGS, ONLY BLANK
+    ArrayList<Space> nonDiscoveredNeighbors = new ArrayList<>();
+    for(Space s:this.getNeighbors()){
+      if(s != null && !s.isDiscovered() && !s.isFlagged())
+        nonDiscoveredNeighbors.add(s);
+    }
+    return nonDiscoveredNeighbors.toArray(new Space[0]);
+  }
+  
+  Space[] getDiscoveredNeighbors(){
+    ArrayList<Space> discoveredNeighbors = new ArrayList<>();
+    for(Space s:this.getNeighbors()){
+      if(s != null && s.isDiscovered())
+        discoveredNeighbors.add(s);
+    }
+    return discoveredNeighbors.toArray(new Space[0]);
+  }
+  
+  int numFlaggedNeighbors(){
+    int numFlagged = 0;
+    for(Space s:this.getNeighbors())
+      if(s != null && s.isFlagged())
+        numFlagged++;
+    return numFlagged;
+  }
+  
+  int sumDiscoveredNeighbors(){//given an UNK space, sum its neighbors' (numMines - numFlaggedNeighbors)
+    int sum = 0;
+    for(Space discNeig : getDiscoveredNeighbors()){
+      sum += (discNeig.numMines - discNeig.numFlaggedNeighbors());
+    }
+    return sum;
+  }
+  
   void setMine(){
     this.mine = true;
   }
@@ -44,7 +87,10 @@ class Space{
   }
   
   void setDiscovered(){
-    this.discovered = true;
+    if(!this.discovered){
+      this.discovered = true;
+      discoveredSpaces.add(this);
+    }
   }
   
   void drawSpace(){

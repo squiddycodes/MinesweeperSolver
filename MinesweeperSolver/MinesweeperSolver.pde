@@ -4,18 +4,21 @@ import java.util.Random;
 
 int squareSize = 50;//             50
 int mapSize = 800;//               800 
-int mines = 2;//                   40
+int mines = 40;//                   40
 int numSpaces = 256;//             256
 
-boolean BIGGAME = true;//10,000 spaces game
+boolean BIGGAME = false;//10,000 spaces game
+boolean humanPlaying = false;
 //END GAME PARAMETERS
 
 boolean gameStarted = false; 
 boolean gameOver = false;
 boolean delayDraw = false;
+boolean justDelayed = false;
 int delayBy = 0;
 
 Space[] spaces = new Space[numSpaces];
+ArrayList<Space> discoveredSpaces = new ArrayList<>();
 /*  Beginner - 9 * 9 Board and 10 Mines
     Intermediate - 16 * 16 Board and 40 Mines
     Advanced - 24 * 24 Board and 99 Mines      */
@@ -24,7 +27,7 @@ void settings() {
   if(BIGGAME){
     squareSize = 10;
     mapSize = 1000; 
-    mines = 1200;
+    mines = 1500;
     numSpaces = 10000;
     spaces = new Space[numSpaces];
   }
@@ -41,45 +44,35 @@ void setup(){
     }
   }
   drawMap();
-}
-
-void draw(){
-  drawMap();
-  if(delayDraw){
-    delay(1000);
-    delayDraw = false;
-    reset();
+  if(!humanPlaying){
+    Random random = new Random();
+    clickSpace(spaces[random.nextInt(numSpaces)]);
   }
 }
 
+void draw(){
+  if(delayDraw){
+    delay(delayBy);
+    delayDraw = false;
+    justDelayed = true;
+    reset();
+  }
+  drawMap();
+  clickSpace(smartMove());
+}
+
 void mousePressed(){
-  if (mouseButton == LEFT) {
-    if(!gameStarted){
-      setMines();
-      setSpaceNeighbors();
-      setSpaceValues();
-      gameStarted = true;
-    }
-    Space clickedSpace = getSpaceFromPos(getMousePos());
-    clickedSpace.setDiscovered();
-    clickedSpace.drawSpace();
-    if(clickedSpace.isMine()){
-      gameOver = true;
-      showEndGameMessage(false);
-    }
-    else{//if not gameover
-      chainDiscover(clickedSpace);
-      postChainDiscover();
-      
-      if(isWinState())
-        showEndGameMessage(true);
-    }
-  } else if (mouseButton == RIGHT) {
-    Space clickedSpace = getSpaceFromPos(getMousePos());
-    clickedSpace.toggleFlag();
-  }else{//MIDDLE
-    for(Space space:spaces){
-      space.discovered = true;
+  if(humanPlaying){
+    if (mouseButton == LEFT) {
+      Space clickedSpace = getSpaceFromPos(getMousePos());
+      clickSpace(clickedSpace);
+    } else if (mouseButton == RIGHT) {
+      Space clickedSpace = getSpaceFromPos(getMousePos());
+      flagSpace(clickedSpace);
+    }else{//MIDDLE
+      for(Space space:spaces){
+        space.discovered = true;
+      }
     }
   }
 }
@@ -90,9 +83,8 @@ void drawMap(){
   }
 }
 
-void setMines(){//SET SO THAT 
+void setMines(Space firstClickSpace){//SET SO THAT 
   Random random = new Random();
-  Space firstClickSpace = getSpaceFromPos(getMousePos());
   
   for(int i = 0; i < mines; i++){
     boolean uniqueFound = false;
@@ -161,6 +153,7 @@ void postChainDiscover(){//discover all neighbors of numMines = 0 spaces
     if(s.numMines == 0 && s.isDiscovered())//if empty discovered space
       for(Space neighbor:s.getNeighbors())
         neighbor.setDiscovered();
+        
 }
 
 boolean isWinState(){
@@ -191,7 +184,7 @@ void showEndGameMessage(boolean win){
     textSize(mapSize/10);
     text("You Lose!", mapSize/3.5, mapSize/2);
   }
-  delayDraw(2000);
+  delayDraw(4000);
 }
 
 void delayDraw(int ms){//delays NEXT draw, draw updates at the END
@@ -203,9 +196,91 @@ void reset(){
   gameStarted = false;
   gameOver = false;
   spaces = new Space[numSpaces];
+  discoveredSpaces.clear();
   setup();
 }
 
+void clickSpace(Space s){
+  if(s == null)
+    return;
+  if(!gameStarted){
+    setMines(s);
+    setSpaceNeighbors();
+    setSpaceValues();
+    gameStarted = true;
+  }
+  s.setDiscovered();
+  s.drawSpace();
+  if(s.isMine()){
+    gameOver = true;
+    showEndGameMessage(false);
+  }
+  else{//if not gameover
+    chainDiscover(s);
+    postChainDiscover();
+    
+    if(isWinState())
+      showEndGameMessage(true);
+  }
+}
+
+void flagSpace(Space s){
+  s.toggleFlag();
+  if(isWinState())
+      showEndGameMessage(true);
+}
+
+
+
 Space smartMove(){
-  return spaces[0];
+  //  place all guaranteed flags -                             num non discovered neighbors = numMines -> place flags to all non discovered neighbors
+  boolean flagPlaced = true;
+  while(flagPlaced){
+    flagPlaced = false;
+    for(Space s : discoveredSpaces){
+      Space[] nonDiscNeighbors = s.getNonDiscoveredNeighbors();
+      if(nonDiscNeighbors.length == s.numMines && s.numMines > 0){
+        for(Space neig : nonDiscNeighbors)
+          if(!neig.isFlagged()){
+            flagSpace(neig);
+            flagPlaced = true;
+          }
+      }
+    }
+  }
+  //  check for safe spaces - choose                               numMines == numFlaggedNeighbors -> all other neighbors are safe
+  for(Space s : discoveredSpaces){
+    if(s.numMines == s.numFlaggedNeighbors()){
+      for(Space neighbor: s.getNonDiscoveredNeighbors()){
+        if(!neighbor.isFlagged())
+          return neighbor;
+      }
+    }
+  }
+  //  calculate safest space and choose                           s.probBombFromChooseRandNeig = (s.numMines - s.numFlaggedNeig) / numNonFlaggedNonDiscoveredNeig  <- Add this probability to all neighboring spaces' choice value
+  
+  //for each unknown border space, count the number of discovered neighbors touching it, choose one tied for lowest   s.probBomb = sum of discovered neighbors' num Mines minus their already flagged mines
+  ArrayList<Space> unkSpaces = new ArrayList<>();
+  for(Space discSpace : discoveredSpaces){
+    for(Space unkSpace : discSpace.getUnkNeighbors())
+      if(!unkSpaces.contains(unkSpace))
+        unkSpaces.add(unkSpace);
+  }
+  if(unkSpaces.size() > 0){
+    int[] probBomb = new int[unkSpaces.size()];
+    int min = 99;
+    int minIndex = -1;
+    for(int i = 0; i < probBomb.length; i++){
+      probBomb[i] = unkSpaces.get(i).sumDiscoveredNeighbors();
+      if(probBomb[i] < min){
+        min = probBomb[i];
+        minIndex = i;
+      }
+    }
+    return unkSpaces.get(minIndex);
+  }
+  for(Space s : spaces)
+    if(!s.isFlagged() && !s.isDiscovered())
+      return s;
+  return null;
 }
